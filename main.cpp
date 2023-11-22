@@ -489,10 +489,12 @@ public:
         if (!m_Buffer)
             throw std::bad_alloc();
 
+        std::memset(m_Buffer, 0, m_Capacity);
+
         usize i = 0;
         for (const auto& e : list)
         {
-            m_Buffer[i / 8] = (m_Buffer[i / 8] << 1) | e;
+            m_Buffer[i / 8] |= e << (7 - i % 8);
             ++i;
         }
     }
@@ -507,9 +509,8 @@ public:
         const auto size = other.Size();
         for (usize i = 0; i < size; ++i)
         {
-            // 1011
-            // 0001
-            stream << ((other.m_Buffer[i / 8] >> (7 - i % 8)) ? "true" : "false");
+            stream << ((other.m_Buffer[i / 8] >> (7 - i % 8)) & 1);
+            // stream << i % 8;
             if (i + 1 != size)
                 stream << ", ";
         }
@@ -600,7 +601,7 @@ void TestVec()
 
 void TestBitset()
 {
-    Vec<bool> vec = { true, false, true, true, false, false, false, true, true };
+    Vec<bool> vec = { 1, 0, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1 };
     std::cout << vec << std::endl;
 }
 
