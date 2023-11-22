@@ -18,6 +18,8 @@ using u16     = std::uint16_t;
 using i16     = std::int16_t;
 using u32     = std::uint32_t;
 using i32     = std::int32_t;
+using u64     = std::uint64_t;
+using i64     = std::int64_t;
 
 template <typename T>
 class Vec
@@ -466,10 +468,58 @@ public:
     }
 };
 
-int main()
+template <>
+class Vec<bool>
 {
-    std::srand(std::time(nullptr));
+private:
+    u8*   m_Buffer   = nullptr;
+    usize m_Size     = 0;
+    usize m_Capacity = 0;
 
+    // Nested iterator classes (const and non-const) for iteration.
+private:
+public:
+    Vec() = default;
+    Vec(const usize size) : m_Size(size), m_Capacity(size * 2) { m_Buffer = new u8[m_Capacity / 8]; }
+    Vec(const std::initializer_list<bool> list)
+    {
+        m_Size     = list.size();
+        m_Capacity = m_Size * 2;
+        m_Buffer   = new u8[m_Capacity / 8];
+        if (!m_Buffer)
+            throw std::bad_alloc();
+
+        usize i = 0;
+        for (const auto& e : list)
+        {
+            m_Buffer[i / 8] = (m_Buffer[i / 8] << 1) | e;
+            ++i;
+        }
+    }
+
+public:
+    constexpr usize Size() const noexcept { return m_Size; }
+
+public:
+    friend std::ostream& operator<<(std::ostream& stream, const Vec<bool>& other) noexcept
+    {
+        stream << "[ ";
+        const auto size = other.Size();
+        for (usize i = 0; i < size; ++i)
+        {
+            // 1011
+            // 0001
+            stream << ((other.m_Buffer[i / 8] >> (7 - i % 8)) ? "true" : "false");
+            if (i + 1 != size)
+                stream << ", ";
+        }
+        stream << " ]";
+        return stream;
+    }
+};
+
+void TestVec()
+{
     Vec<int> vec;
     Vec<int> vec2 = { 5, 3, 1 };
     for (usize i = 0; i < 9; ++i)
@@ -546,5 +596,19 @@ int main()
     std::cout << "vec2: " << vec2 << std::endl;
     vec.Insert(vec.begin() + 1, vec2.begin() + 1, vec2.begin() + 3);
     std::cout << "vec after inserting vec2's range (at 1 range: 2..5): " << vec << std::endl;
+}
+
+void TestBitset()
+{
+    Vec<bool> vec = { true, false, true, true, false, false, false, true, true };
+    std::cout << vec << std::endl;
+}
+
+int main()
+{
+    std::srand(std::time(nullptr));
+
+    // TestVec();
+    TestBitset();
     return 0;
 }
