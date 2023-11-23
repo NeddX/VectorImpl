@@ -1,3 +1,4 @@
+#include <bitset>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -30,7 +31,7 @@ private:
     usize m_Capacity = 0;
 
     // Nested iterator classes (const and non-const) for iteration.
-private:
+public:
     class ConstIterator;
     class Iterator
     {
@@ -51,25 +52,25 @@ private:
     public:
         constexpr reference operator*() const noexcept { return *m_Ptr; }
         constexpr pointer   operator->() const noexcept { return m_Ptr; };
-        constexpr Iterator& operator++() noexcept
+        inline Iterator&    operator++() noexcept
         {
             ++m_Ptr;
             return *this;
         }
-        constexpr Iterator& operator++(const i32) noexcept
+        Iterator operator++(const i32) noexcept
         {
             auto t = *this;
             ++(*this);
             return t;
         }
-        constexpr ptrdiff  operator-(const Iterator& other) const noexcept { return m_Ptr - other.m_Ptr; }
-        constexpr Iterator operator+(const uintptr disp) const noexcept
+        constexpr ptrdiff operator-(const Iterator& other) const noexcept { return m_Ptr - other.m_Ptr; }
+        inline Iterator   operator+(const uintptr disp) const noexcept
         {
             Iterator temp = *this;
             temp.m_Ptr += disp;
             return temp;
         };
-        constexpr Iterator operator-(const uintptr disp) const noexcept
+        inline Iterator operator-(const uintptr disp) const noexcept
         {
             Iterator temp = *this;
             temp.m_Ptr -= disp;
@@ -96,27 +97,27 @@ private:
         ConstIterator(Iterator it) noexcept : m_Ptr(it.m_Ptr) {}
 
     public:
-        constexpr reference      operator*() const noexcept { return *m_Ptr; }
-        constexpr pointer        operator->() const noexcept { return m_Ptr; };
-        constexpr ConstIterator& operator++() noexcept
+        constexpr reference   operator*() const noexcept { return *m_Ptr; }
+        constexpr pointer     operator->() const noexcept { return m_Ptr; };
+        inline ConstIterator& operator++() noexcept
         {
             ++m_Ptr;
             return *this;
         }
-        constexpr ConstIterator& operator++(const i32) noexcept
+        inline ConstIterator operator++(const i32) noexcept
         {
             auto t = *this;
             ++(*this);
             return t;
         }
-        constexpr ptrdiff       operator-(const ConstIterator& other) const noexcept { return m_Ptr - other.m_Ptr; }
-        constexpr ConstIterator operator+(const i32 disp) const noexcept
+        constexpr ptrdiff    operator-(const ConstIterator& other) const noexcept { return m_Ptr - other.m_Ptr; }
+        inline ConstIterator operator+(const i32 disp) const noexcept
         {
             ConstIterator temp = *this;
             temp.m_Ptr += disp;
             return temp;
         };
-        constexpr ConstIterator operator-(const i32 disp) const noexcept
+        inline ConstIterator operator-(const i32 disp) const noexcept
         {
             ConstIterator temp = *this;
             temp.m_Ptr -= disp;
@@ -173,14 +174,15 @@ public:
     constexpr usize MaxSize() const noexcept { return std::numeric_limits<usize>::max() / sizeof(T); }
 
 public:
-    constexpr Iterator      begin() noexcept { return Iterator(m_Buffer); }
-    constexpr Iterator      end() noexcept { return Iterator(m_Buffer + m_Size); }
-    constexpr ConstIterator begin() const noexcept { return ConstIterator(m_Buffer); }
-    constexpr ConstIterator end() const noexcept { return ConstIterator(m_Buffer + m_Size); }
+    inline Iterator      begin() noexcept { return Iterator(m_Buffer); }
+    inline Iterator      end() noexcept { return Iterator(m_Buffer + m_Size); }
+    inline ConstIterator begin() const noexcept { return ConstIterator(m_Buffer); }
+    inline ConstIterator end() const noexcept { return ConstIterator(m_Buffer + m_Size); }
 
 private:
     void Realloc(const usize newSize, const bool reserveExtra = true)
     {
+        std::vector<int> a;
         // Reallocates memory to accommodate the new requested size. If there was a previous m_Buffer,
         // it will simply creating a new buffer, copy the previous elements into it and release the previous one,
         // otherwise it will only allocate a new buffer.
@@ -240,15 +242,16 @@ public:
         else
             m_Buffer[m_Size++] = e;
     }
-    constexpr T Pop()
+    inline T Pop()
     {
+        std::vector<int> a;
         // Pop the element and return it efficiently while also performing bounds checks.
         if (m_Size > 0)
             return std::move(m_Buffer[m_Size--]);
         else
             throw std::out_of_range("Tried calling Pop() on an empty vector.");
     }
-    constexpr T& Front()
+    inline T& Front()
     {
         // Grab a reference to the first element with bounds checking.
         if (m_Size > 0)
@@ -256,7 +259,7 @@ public:
         else
             throw std::out_of_range("Tried calling Front() on an empty vector.");
     }
-    constexpr T& Back()
+    inline T& Back()
     {
         // Same as above except we grab a reference to the last element.
         if (m_Size > 0)
@@ -264,7 +267,7 @@ public:
         else
             throw std::out_of_range("Tried calling Back() on an empty vector.");
     }
-    constexpr T& At(const usize index)
+    inline T& At(const usize index)
     {
         // Same as the subscript operator but with bounds checking.
         if (m_Size - 1 >= index)
@@ -477,7 +480,83 @@ private:
     usize m_Capacity = 0;
 
     // Nested iterator classes (const and non-const) for iteration.
-private:
+public:
+    class BitRef
+    {
+    private:
+        u8*   m_Ptr   = nullptr;
+        usize m_Index = 0;
+
+    public:
+        BitRef(u8* ptr, const usize index) : m_Ptr(ptr), m_Index(index) {}
+
+    public:
+        constexpr operator bool() const noexcept { return (m_Ptr[m_Index / 8] >> (7 - m_Index % 8) & 1); }
+        inline BitRef& operator=(const bool value) noexcept
+        {
+            m_Ptr[m_Index / 8] |= value << (7 - m_Index % 8);
+            return *this;
+        }
+        inline BitRef& operator=(const BitRef& value) noexcept
+        {
+            m_Ptr[m_Index / 8] |= value << (7 - m_Index % 8);
+            return *this;
+        }
+        constexpr bool operator~() const noexcept { return ~(((m_Ptr[m_Index / 8] >> (7 - m_Index % 8)) & 1)); }
+        inline BitRef& Flip() noexcept
+        {
+            m_Ptr[m_Index / 8] |= this->operator~() << (7 - m_Index % 8);
+            return *this;
+        }
+    };
+    class Iterator
+    {
+        using iterator_category = std::forward_iterator_tag;
+        using difference_type   = ptrdiff;
+        using value_type        = bool;
+        using pointer           = u8*;
+        using reference         = BitRef;
+
+    private:
+        pointer m_Ptr;
+        usize   m_Index;
+
+    public:
+        Iterator(pointer ptr, const usize index) noexcept : m_Ptr(ptr), m_Index(index) {}
+
+    public:
+        inline reference  operator*() const noexcept { return BitRef(m_Ptr, m_Index); }
+        constexpr pointer operator->() const noexcept = delete;
+        inline Iterator&  operator++() noexcept
+        {
+            ++m_Index;
+            return *this;
+        }
+        inline Iterator operator++(const i32) noexcept
+        {
+            auto t = *this;
+            ++(*this);
+            return t;
+        }
+        constexpr ptrdiff operator-(const Iterator& other) const noexcept { return m_Index - other.m_Index; }
+        inline Iterator   operator+(const uintptr disp) const noexcept
+        {
+            Iterator temp = *this;
+            temp.m_Index += disp;
+            return temp;
+        };
+        inline Iterator operator-(const uintptr disp) const noexcept
+        {
+            Iterator temp = *this;
+            temp.m_Index -= disp;
+            return temp;
+        }
+
+    public:
+        friend bool operator==(const Iterator& lhv, const Iterator& rhv) noexcept { return lhv.m_Index == rhv.m_Index; }
+        friend bool operator!=(const Iterator& lhv, const Iterator& rhv) noexcept { return !(lhv == rhv); }
+    };
+
 public:
     Vec() = default;
     Vec(const usize size) : m_Size(size), m_Capacity(size * 2) { m_Buffer = new u8[m_Capacity / 8]; }
@@ -501,6 +580,252 @@ public:
 
 public:
     constexpr usize Size() const noexcept { return m_Size; }
+    constexpr usize Capacity() const noexcept { return m_Capacity; }
+    constexpr bool  Empty() const noexcept { return m_Size == 0; }
+    constexpr u8*   Data() const noexcept { return m_Buffer; }
+    constexpr usize MaxSize() const noexcept { return std::numeric_limits<usize>::max() / sizeof(bool); }
+
+public:
+    inline Iterator begin() const noexcept { return Iterator(m_Buffer, 0); }
+    inline Iterator end() const noexcept { return Iterator(m_Buffer, m_Size); }
+
+private:
+    constexpr void BitInsert(const bool e, const usize index) noexcept { m_Buffer[index / 8] |= e << (7 - index % 8); }
+    constexpr bool BitGet(const usize index) const noexcept { return (m_Buffer[index / 8] >> (7 - index % 8)) & 1; }
+    void           Realloc(const usize newSize, const bool reserveExtra = true)
+    {
+        // Reallocates memory to accommodate the new requested size. If there was a previous m_Buffer,
+        // it will simply creating a new buffer, copy the previous elements into it and release the previous one,
+        // otherwise it will only allocate a new buffer.
+        // It also doubles the capacity if reserveExtra is set to true.
+        if (newSize == m_Size)
+            return;
+
+        const usize prev_size = m_Size;
+        m_Size                = newSize;
+
+        if (reserveExtra)
+            m_Capacity = newSize * 2;
+        else
+            m_Capacity = newSize;
+
+        if (prev_size > 0)
+        {
+            u8* temp = m_Buffer;
+            m_Buffer = new u8[m_Capacity / 8];
+            if (!m_Buffer)
+                throw std::bad_alloc();
+            if (prev_size < m_Size)
+                std::memcpy(m_Buffer, temp, prev_size * sizeof(u8));
+            else
+                std::memcpy(m_Buffer, temp, m_Size * sizeof(u8));
+            delete[] temp;
+        }
+        else
+        {
+            if (m_Buffer)
+                delete[] m_Buffer;
+            m_Buffer = new u8[m_Capacity / 8];
+            if (!m_Buffer)
+                throw std::bad_alloc();
+        }
+    }
+    inline void Drop() noexcept
+    {
+        // Disposes our vector.
+        delete[] m_Buffer;
+        m_Buffer   = nullptr;
+        m_Size     = 0;
+        m_Capacity = 0;
+    }
+
+public:
+    void Push(const bool e)
+    {
+        // Reallocate if there's not enough space, since Realloc() changes m_Size, we have to accommodate for it
+        // by doing m_Size - 1 (- 1 because we increase our storage space by 1), otherwise just straight up assign the
+        // element.
+        if (m_Size >= m_Capacity)
+        {
+            Realloc(m_Size + 1);
+            BitInsert(e, m_Size - 1);
+        }
+        else
+            BitInsert(e, m_Size++);
+    }
+    constexpr bool Pop()
+    {
+        // Pop the element and return it efficiently while also performing bounds checks.
+        if (m_Size > 0)
+            return std::move(BitGet(m_Size--));
+        else
+            throw std::out_of_range("Tried calling Pop() on an empty vector.");
+    }
+    constexpr bool Front()
+    {
+        // Grab a reference to the first element with bounds checking.
+        if (m_Size > 0)
+            return BitGet(0);
+        else
+            throw std::out_of_range("Tried calling Front() on an empty vector.");
+    }
+    constexpr bool Back()
+    {
+        // Same as above except we grab a reference to the last element.
+        if (m_Size > 0)
+            return BitGet(m_Size - 1);
+        else
+            throw std::out_of_range("Tried calling Back() on an empty vector.");
+    }
+    constexpr bool At(const usize index)
+    {
+        // Same as the subscript operator but with bounds checking.
+        if (m_Size - 1 >= index)
+            return BitGet(index);
+        else
+            throw std::out_of_range("Index out of bounds.");
+    }
+    void Assign(const usize count, const bool value)
+    {
+        // First overload of Assign(): Fills the vector with 'count' times 'value'.
+        Realloc(count);
+        std::fill(begin(), end(), value);
+    }
+    void Assign(const Iterator begin, const Iterator end)
+    {
+        // Second overload of Assign(): Fills the contents of this vector with the range of the other
+        // using its iterators.
+        Realloc(end - begin);
+        std::copy(begin, end, this->begin());
+    }
+    void Assign(const std::initializer_list<bool> list)
+    {
+        // Third overload of Assign(): Fills the vector with the contents of the supplied initializer list.
+        Realloc(list.size());
+        usize i = 0;
+        for (const auto& e : list)
+        {
+            m_Buffer[i / 8] |= e << (7 - i % 8);
+            ++i;
+        }
+    }
+    constexpr void Swap(Vec<bool>& other)
+    {
+        // Swaps the fields, creating an illusion of a swap.
+        std::swap(m_Size, other.m_Size);
+        std::swap(m_Capacity, other.m_Capacity);
+        std::swap(m_Buffer, other.m_Buffer);
+    }
+    inline void Resize(const usize newSize) { Realloc(newSize); }
+    void        Insert(const Iterator pos, const bool value)
+    {
+        // First overload of Insert(): Inserts 'value' at 'diff', which is the distance between these two iterators (pos
+        // - begin). The distance (diff) here is our index at which we will insert 'value' onto. We do this by creating
+        // a new buffer that has the size 'm_Size + 1' and copy the contents of the previous buffer while also making
+        // space for 'value' and inserting it.
+        const auto  diff          = pos - begin();
+        const usize prev_capacity = m_Capacity;
+        const u8*   temp          = m_Buffer;
+
+        ++m_Size;
+        m_Capacity = m_Size * 2;
+        m_Buffer   = new u8[m_Capacity];
+        std::memset(m_Buffer, 0, m_Capacity);
+
+        for (usize i = 0, j = 0; i < m_Size; ++i)
+        {
+            if (i != diff)
+                m_Buffer[i / 8] |= ((temp[j / 8] >> (7 - j++ % 8)) & 1) << (7 - i % 8);
+            else
+                m_Buffer[i / 8] |= value << (7 - i % 8);
+        }
+
+        delete[] temp;
+    }
+    void Insert(const Iterator pos, const Iterator first, const Iterator last)
+    {
+        // Second overload of Insert(): Merge a different vector's range at 'pos' using its iterators.
+
+        const auto  diff          = pos - begin();
+        const usize insert_size   = last - first;
+        const usize prev_capacity = m_Capacity;
+        const usize prev_size     = m_Size;
+        u8*         temp          = m_Buffer;
+
+        m_Size += insert_size;
+        m_Capacity = m_Size * 2;
+        m_Buffer   = new u8[m_Capacity];
+        std::memset(m_Buffer, 0, m_Capacity);
+
+        for (usize i = 0, j = 0; i < m_Size; ++i)
+        {
+            if (i != diff)
+                m_Buffer[i / 8] |= ((temp[j / 8] >> (7 - j++ % 8)) & 1) << (7 - i % 8);
+            else
+            {
+                for (auto it = first; it != last; ++it)
+                    m_Buffer[i / 8] |= *it << (7 - i++ % 8);
+            }
+        }
+
+        delete[] temp;
+    }
+    void Erase(const Iterator pos)
+    {
+        if (!Empty())
+        {
+            const usize   prev_size = m_Size;
+            const ptrdiff index     = pos - begin();
+
+            u8* temp = m_Buffer;
+            --m_Size;
+            m_Capacity = m_Size * 2;
+            m_Buffer   = new u8[m_Capacity];
+            std::memset(m_Buffer, 0, m_Capacity);
+
+            for (usize i = 0, j = 0; i < prev_size; ++i)
+                if (i != index)
+                    m_Buffer[j++ / 8] |= ((temp[i / 8] >> (7 - i % 8)) & 1) << (7 - i % 8);
+            delete[] temp;
+        }
+        else
+            throw std::out_of_range("Tried calling Erase() on an empty vector.");
+    }
+    constexpr void Reserve(const usize newCapacity)
+    {
+        if (newCapacity > m_Capacity)
+        {
+            const usize prev_capacity = m_Capacity;
+            m_Capacity                = newCapacity;
+            u8* temp                  = m_Buffer;
+            m_Buffer                  = new u8[m_Capacity];
+            std::memcpy(m_Buffer, temp, prev_capacity * sizeof(u8));
+            delete[] temp;
+        }
+    }
+    void Erase(const Iterator first, const Iterator last)
+    {
+        if (!Empty())
+        {
+            const usize prev_size = m_Size;
+            u8*         temp      = m_Buffer;
+            m_Size -= last - first;
+            m_Capacity = m_Size * 2;
+            m_Buffer   = new u8[m_Capacity];
+            std::memset(m_Buffer, 0, m_Capacity);
+
+            /*
+            std::copy(temp, temp + (first - temp), m_Buffer);
+            std::copy(temp + (last - first) + (first - temp), temp + prev_size, m_Buffer + (first - temp));
+            */
+
+            delete[] temp;
+        }
+        else
+            throw std::out_of_range("Tried calling Erase() on an empty vector.");
+    }
+    inline void    ShrinkToFit() { Realloc(m_Size, false); }
+    constexpr void Clear() noexcept { m_Size = 0; }
 
 public:
     friend std::ostream& operator<<(std::ostream& stream, const Vec<bool>& other) noexcept
@@ -510,7 +835,6 @@ public:
         for (usize i = 0; i < size; ++i)
         {
             stream << ((other.m_Buffer[i / 8] >> (7 - i % 8)) & 1);
-            // stream << i % 8;
             if (i + 1 != size)
                 stream << ", ";
         }
@@ -601,7 +925,13 @@ void TestVec()
 
 void TestBitset()
 {
-    Vec<bool> vec = { 1, 0, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1 };
+    std::bitset<10> n;
+    Vec<bool>       vec = { 1, 1, 1, 0, 0, 1, 1, 0, 0 };
+    for (Vec<bool>::BitRef bit : vec)
+    {
+        bit = false;
+    }
+    // vec.Insert(vec.begin() + 1, false);
     std::cout << vec << std::endl;
 }
 
