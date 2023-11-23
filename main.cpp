@@ -424,7 +424,7 @@ public:
     }
 
 public:
-    constexpr T& operator[](const usize index) const noexcept { return m_Buffer[index]; }
+    constexpr T& operator[](const usize index) noexcept { return m_Buffer[index]; }
     Vec<T>&      operator=(const std::initializer_list<T> list)
     {
         Realloc(list.size());
@@ -479,8 +479,8 @@ private:
     usize m_Size     = 0;
     usize m_Capacity = 0;
 
-    // Nested iterator classes (const and non-const) for iteration.
 public:
+    // Proxy class for holding a 'reference' to a bit.
     class BitRef
     {
     private:
@@ -494,23 +494,21 @@ public:
         constexpr operator bool() const noexcept { return (m_Ptr[m_Index / 8] >> (7 - m_Index % 8) & 1); }
         inline BitRef& operator=(const bool value) noexcept
         {
-            m_Ptr[m_Index / 8] |= value << (7 - m_Index % 8);
+            if (value)
+                m_Ptr[m_Index / 8] |= 1 << (7 - m_Index % 8);
+            else
+                m_Ptr[m_Index / 8] &= ~(1 << (7 - m_Index % 8));
             return *this;
         }
-        inline BitRef& operator=(const BitRef& value) noexcept
-        {
-            m_Ptr[m_Index / 8] |= value << (7 - m_Index % 8);
-            return *this;
-        }
+        inline BitRef& operator=(const BitRef& value) noexcept { return this->operator=(value); }
         constexpr bool operator~() const noexcept { return ~(((m_Ptr[m_Index / 8] >> (7 - m_Index % 8)) & 1)); }
-        inline BitRef& Flip() noexcept
-        {
-            m_Ptr[m_Index / 8] |= this->operator~() << (7 - m_Index % 8);
-            return *this;
-        }
+        inline BitRef& Flip() noexcept { return this->operator=(!*this); }
     };
+    class ConstIterator;
     class Iterator
     {
+        friend class ConstIterator;
+
         using iterator_category = std::forward_iterator_tag;
         using difference_type   = ptrdiff;
         using value_type        = bool;
@@ -556,6 +554,56 @@ public:
         friend bool operator==(const Iterator& lhv, const Iterator& rhv) noexcept { return lhv.m_Index == rhv.m_Index; }
         friend bool operator!=(const Iterator& lhv, const Iterator& rhv) noexcept { return !(lhv == rhv); }
     };
+    class ConstIterator
+    {
+        using iterator_category = std::forward_iterator_tag;
+        using difference_type   = ptrdiff;
+        using value_type        = bool;
+        using pointer           = const u8*;
+        using reference         = const BitRef;
+
+    private:
+        pointer m_Ptr;
+        usize   m_Index;
+
+    public:
+        ConstIterator(pointer ptr, const usize index) noexcept : m_Ptr(ptr), m_Index(index) {}
+
+    public:
+        inline reference      operator*() const noexcept { return BitRef((u8*)m_Ptr, m_Index); }
+        constexpr pointer     operator->() const noexcept = delete;
+        inline ConstIterator& operator++() noexcept
+        {
+            ++m_Index;
+            return *this;
+        }
+        inline ConstIterator operator++(const i32) noexcept
+        {
+            auto t = *this;
+            ++(*this);
+            return t;
+        }
+        constexpr ptrdiff    operator-(const Iterator& other) const noexcept { return m_Index - other.m_Index; }
+        inline ConstIterator operator+(const uintptr disp) const noexcept
+        {
+            auto temp = *this;
+            temp.m_Index += disp;
+            return temp;
+        };
+        inline ConstIterator operator-(const uintptr disp) const noexcept
+        {
+            auto temp = *this;
+            temp.m_Index -= disp;
+            return temp;
+        }
+
+    public:
+        friend bool operator==(const ConstIterator& lhv, const ConstIterator& rhv) noexcept
+        {
+            return lhv.m_Index == rhv.m_Index;
+        }
+        friend bool operator!=(const ConstIterator& lhv, const ConstIterator& rhv) noexcept { return !(lhv == rhv); }
+    };
 
 public:
     Vec() = default;
@@ -568,7 +616,7 @@ public:
         if (!m_Buffer)
             throw std::bad_alloc();
 
-        std::memset(m_Buffer, 0, m_Capacity);
+        std::memset(m_Buffer, 0, m_Capacity / 8);
 
         usize i = 0;
         for (const auto& e : list)
@@ -577,6 +625,7 @@ public:
             ++i;
         }
     }
+    ~Vec() { Drop(); }
 
 public:
     constexpr usize Size() const noexcept { return m_Size; }
@@ -626,6 +675,7 @@ private:
             if (m_Buffer)
                 delete[] m_Buffer;
             m_Buffer = new u8[m_Capacity / 8];
+            std::memset(m_Buffer, 0, m_Capacity / 8);
             if (!m_Buffer)
                 throw std::bad_alloc();
         }
@@ -638,6 +688,9 @@ private:
         m_Size     = 0;
         m_Capacity = 0;
     }
+
+public:
+    inline BitRef operator[](const usize index) noexcept { return BitRef(m_Buffer, index); }
 
 public:
     void Push(const bool e)
@@ -803,6 +856,33 @@ public:
             delete[] temp;
         }
     }
+    inline std::string ToString() const noexcept
+    {
+        std::string str;
+        str.resize(m_Size);
+        for (usize i = 0; i < m_Size; ++i)
+            str[i] = 48 + BitGet(i);
+        return str;
+    }
+    inline void Flip() noexcept
+    {
+        for (auto b : *this)
+            b.Flip();
+    }
+    inline bool Any() const noexcept
+    {
+        for (const auto b : *this)
+            if (b)
+                return true;
+        return false;
+    }
+    inline usize Count() const noexcept
+    {
+        usize count = 0;
+        for (const auto b : *this)
+            count = (b) ? ++count : count;
+        return count;
+    }
     void Erase(const Iterator first, const Iterator last)
     {
         if (!Empty())
@@ -824,8 +904,8 @@ public:
         else
             throw std::out_of_range("Tried calling Erase() on an empty vector.");
     }
-    inline void    ShrinkToFit() { Realloc(m_Size, false); }
     constexpr void Clear() noexcept { m_Size = 0; }
+    constexpr void Reset() noexcept { std::memset(m_Buffer, 0, m_Capacity / 8); }
 
 public:
     friend std::ostream& operator<<(std::ostream& stream, const Vec<bool>& other) noexcept
@@ -927,12 +1007,8 @@ void TestBitset()
 {
     std::bitset<10> n;
     Vec<bool>       vec = { 1, 1, 1, 0, 0, 1, 1, 0, 0 };
-    for (Vec<bool>::BitRef bit : vec)
-    {
-        bit = false;
-    }
-    // vec.Insert(vec.begin() + 1, false);
     std::cout << vec << std::endl;
+    std::cout << "Count: " << vec.Count() << std::endl;
 }
 
 int main()
