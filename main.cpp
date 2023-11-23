@@ -612,11 +612,9 @@ public:
     {
         m_Size     = list.size();
         m_Capacity = m_Size * 2;
-        m_Buffer   = new u8[m_Capacity / 8];
+        m_Buffer   = new u8[m_Capacity / 8]{ 0 };
         if (!m_Buffer)
             throw std::bad_alloc();
-
-        std::memset(m_Buffer, 0, m_Capacity / 8);
 
         usize i = 0;
         for (const auto& e : list)
@@ -674,8 +672,7 @@ private:
         {
             if (m_Buffer)
                 delete[] m_Buffer;
-            m_Buffer = new u8[m_Capacity / 8];
-            std::memset(m_Buffer, 0, m_Capacity / 8);
+            m_Buffer = new u8[m_Capacity / 8]{ 0 };
             if (!m_Buffer)
                 throw std::bad_alloc();
         }
@@ -690,7 +687,47 @@ private:
     }
 
 public:
-    inline BitRef operator[](const usize index) noexcept { return BitRef(m_Buffer, index); }
+    inline BitRef     operator[](const usize index) noexcept { return BitRef(m_Buffer, index); }
+    inline Vec<bool>& operator&=(const Vec<bool>& other) noexcept
+    {
+        for (usize i = 0; i < m_Size; ++i)
+        {
+            if (other.m_Size < i)
+                m_Buffer[i] &= other.m_Buffer[i];
+            else
+                m_Buffer[i] &= 0;
+        }
+        return *this;
+    }
+    inline Vec<bool>& operator|=(const Vec<bool>& other) noexcept
+    {
+        for (usize i = 0; i < m_Size; ++i)
+        {
+            if (other.m_Size < i)
+                m_Buffer[i] |= other.m_Buffer[i];
+            else
+                m_Buffer[i] |= 0;
+        }
+        return *this;
+    }
+    inline Vec<bool>& operator^=(const Vec<bool>& other) noexcept
+    {
+        for (usize i = 0; i < m_Size; ++i)
+        {
+            if (other.m_Size < i)
+                m_Buffer[i] ^= other.m_Buffer[i];
+            else
+                m_Buffer[i] ^= 0;
+        }
+        return *this;
+    }
+    inline Vec<bool> operator~() const noexcept
+    {
+        auto copy = *this;
+        for (usize i = 0; i < m_Size; ++i)
+            copy.m_Buffer[i / 8] = ~m_Buffer[i / 8];
+        return copy;
+    }
 
 public:
     void Push(const bool e)
@@ -782,8 +819,7 @@ public:
 
         ++m_Size;
         m_Capacity = m_Size * 2;
-        m_Buffer   = new u8[m_Capacity];
-        std::memset(m_Buffer, 0, m_Capacity);
+        m_Buffer   = new u8[m_Capacity]{ 0 };
 
         for (usize i = 0, j = 0; i < m_Size; ++i)
         {
@@ -807,8 +843,7 @@ public:
 
         m_Size += insert_size;
         m_Capacity = m_Size * 2;
-        m_Buffer   = new u8[m_Capacity];
-        std::memset(m_Buffer, 0, m_Capacity);
+        m_Buffer   = new u8[m_Capacity]{ 0 };
 
         for (usize i = 0, j = 0; i < m_Size; ++i)
         {
@@ -833,8 +868,7 @@ public:
             u8* temp = m_Buffer;
             --m_Size;
             m_Capacity = m_Size * 2;
-            m_Buffer   = new u8[m_Capacity];
-            std::memset(m_Buffer, 0, m_Capacity);
+            m_Buffer   = new u8[m_Capacity]{ 0 };
 
             for (usize i = 0, j = 0; i < prev_size; ++i)
                 if (i != index)
@@ -891,8 +925,7 @@ public:
             u8*         temp      = m_Buffer;
             m_Size -= last - first;
             m_Capacity = m_Size * 2;
-            m_Buffer   = new u8[m_Capacity];
-            std::memset(m_Buffer, 0, m_Capacity);
+            m_Buffer   = new u8[m_Capacity]{ 0 };
 
             /*
             std::copy(temp, temp + (first - temp), m_Buffer);
@@ -1007,7 +1040,7 @@ void TestBitset()
 {
     std::bitset<10> n;
     Vec<bool>       vec = { 1, 1, 1, 0, 0, 1, 1, 0, 0 };
-    std::cout << vec << std::endl;
+    std::cout << ~vec << std::endl;
     std::cout << "Count: " << vec.Count() << std::endl;
 }
 
