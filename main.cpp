@@ -23,7 +23,7 @@ using i32     = std::int32_t;
 using u64     = std::uint64_t;
 using i64     = std::int64_t;
 using f32     = float;
-using f64     = double;
+using f128    = long double;
 
 template <typename T>
 class Vec
@@ -151,6 +151,9 @@ public:
     Vec(const Vec<T>& other)
     {
         // Copy constructor.
+        if (&other == this)
+            return;
+
         m_Size     = other.m_Size;
         m_Capacity = other.m_Capacity;
         m_Buffer   = new T[m_Capacity];
@@ -250,7 +253,6 @@ public:
     }
     inline T Pop()
     {
-        std::vector<int> a;
         // Pop the element and return it efficiently while also performing bounds checks.
         if (m_Size > 0)
             return std::move(m_Buffer[m_Size--]);
@@ -314,9 +316,8 @@ public:
         // - begin). The distance (diff) here is our index at which we will insert 'value' onto. We do this by creating
         // a new buffer that has the size 'm_Size + 1' and copy the contents of the previous buffer while also making
         // space for 'value' and inserting it.
-        const auto  diff          = pos - begin();
-        const usize prev_capacity = m_Capacity;
-        const T*    temp          = m_Buffer;
+        const auto diff = pos - begin();
+        const T*   temp = m_Buffer;
 
         ++m_Size;
         m_Capacity = m_Size * 2;
@@ -331,11 +332,10 @@ public:
     {
         // Second overload of Insert(): Merge a different vector's range at 'pos' using its iterators.
 
-        const auto  diff          = pos - begin();
-        const usize insert_size   = last - first;
-        const usize prev_capacity = m_Capacity;
-        const usize prev_size     = m_Size;
-        T*          temp          = m_Buffer;
+        const auto  diff        = pos - begin();
+        const usize insert_size = last - first;
+        const usize prev_size   = m_Size;
+        T*          temp        = m_Buffer;
 
         m_Size += insert_size;
         m_Capacity = m_Size * 2;
@@ -403,9 +403,8 @@ public:
     template <typename... TArgs>
     void Emplace(const Iterator pos, TArgs&&... args)
     {
-        const auto  diff          = pos - begin();
-        const usize prev_capacity = m_Capacity;
-        const T*    temp          = m_Buffer;
+        const auto diff = pos - begin();
+        const T*   temp = m_Buffer;
 
         ++m_Size;
         m_Capacity = m_Size * 2;
@@ -439,6 +438,9 @@ public:
     }
     Vec<T>& operator=(const Vec<T>& other)
     {
+        if (&other == this)
+            return *this;
+
         Realloc(other.m_Size);
         std::memcpy(m_Buffer, other.m_Buffer, m_Size * sizeof(T));
         return *this;
@@ -628,14 +630,14 @@ public:
 
 public:
     Vec() = default;
-    Vec(const usize size) noexcept : m_Size(size), m_Capacity((usize)std::ceil((f64)m_Size / (f64)BitSize) * 2)
+    Vec(const usize size) noexcept : m_Size(size), m_Capacity(std::ceil((f128)m_Size / (f32)BitSize) * 2)
     {
         m_Buffer = new BufferType[m_Capacity];
     }
     Vec(const std::initializer_list<bool> list)
     {
         m_Size     = list.size();
-        m_Capacity = (usize)std::ceil((f64)m_Size / (f64)BitSize) * 2;
+        m_Capacity = std::ceil((f128)m_Size / (f32)BitSize) * 2;
         m_Buffer   = new BufferType[m_Capacity]{ 0 };
         if (!m_Buffer)
             throw std::bad_alloc();
@@ -649,12 +651,15 @@ public:
     }
     Vec(const Vec<bool>& other) noexcept
     {
+        if (&other == this)
+            return;
+
         if (other.m_Buffer)
         {
             m_Size     = other.m_Size;
             m_Capacity = other.m_Capacity;
-            m_Buffer   = new BufferType[m_Capacity];
-            std::memcpy(m_Buffer, other.m_Buffer, std::ceil((f64)(m_Size / BitSize)));
+            m_Buffer   = new BufferType[m_Capacity]{ 0 };
+            std::memcpy(m_Buffer, other.m_Buffer, std::ceil((f128)m_Size / (f32)BitSize));
         }
     }
     Vec(Vec<bool>&& other) noexcept
@@ -703,9 +708,9 @@ private:
         m_Size                = newSize;
 
         if (reserveExtra)
-            m_Capacity = std::ceil((f64)(newSize * 2.0 / BitSize));
+            m_Capacity = std::ceil((f128)newSize * 2.0 / (f32)BitSize);
         else
-            m_Capacity = std::ceil(newSize / BitSize);
+            m_Capacity = std::ceil((f128)newSize / (f32)BitSize);
 
         if (prev_size > 0)
         {
@@ -739,11 +744,40 @@ private:
 
 public:
     inline BitRef     operator[](const usize index) noexcept { return BitRef(m_Buffer, index); }
+    inline Vec<bool>& operator=(const Vec<bool>& other) noexcept
+    {
+        if (&other == this)
+            return *this;
+
+        if (m_Buffer)
+            Drop();
+
+        m_Size     = other.m_Size;
+        m_Capacity = other.m_Capacity;
+        m_Buffer   = new BufferType[m_Capacity]{ 0 };
+        if (other.m_Buffer)
+            std::memcpy(m_Buffer, other.m_Buffer, std::ceil((f128)m_Size / (f32)BitSize));
+
+        return *this;
+    }
+    inline Vec<bool>& operator=(Vec<bool>&& other) noexcept
+    {
+        if (&other == this)
+            return *this;
+
+        if (m_Buffer)
+            Drop();
+
+        std::swap(m_Size, other.m_Size);
+        std::swap(m_Capacity, other.m_Capacity);
+        std::swap(m_Buffer, other.m_Buffer);
+        return *this;
+    }
     inline Vec<bool>& operator&=(const Vec<bool>& other) noexcept
     {
-        for (usize i = 0; i < m_Size; ++i)
+        for (usize i = 0; i < m_Size / BitSize; ++i)
         {
-            if (other.m_Size > i)
+            if (other.m_Size / BitSize >= i)
                 m_Buffer[i] &= other.m_Buffer[i];
             else
                 m_Buffer[i] &= 0;
@@ -773,7 +807,7 @@ public:
         }
         return *this;
     }
-    inline Vec<bool> operator|=(const Vec<bool>& other) const noexcept
+    inline Vec<bool> operator|(const Vec<bool>& other) const noexcept
     {
         auto cpy = *this;
         for (usize i = 0; i < m_Size / BitSize; ++i)
@@ -808,6 +842,21 @@ public:
         }
         return cpy;
     }
+    inline Vec<bool>& operator<<=(const usize pos) noexcept
+    {
+        BufferType t{};
+        for (usize i = m_Size / BitSize; i >= 0; --i)
+        {
+            // 0101
+            // 0100
+            //
+            t = m_Buffer[i];
+            t >>= (sizeof(BufferType) * 8) - pos;
+
+            m_Buffer[i] <<= pos;
+        }
+        return *this;
+    }
     inline Vec<bool> operator~() const noexcept
     {
         auto copy = *this;
@@ -834,7 +883,7 @@ public:
     {
         // Pop the element and return it efficiently while also performing bounds checks.
         if (m_Size > 0)
-            return std::move(BitAt(m_Size--));
+            return BitAt(m_Size--);
         else
             throw std::out_of_range("Tried calling Pop() on an empty vector.");
     }
@@ -900,17 +949,17 @@ public:
         // - begin). The distance (diff) here is our index at which we will insert 'value' onto. We do this by creating
         // a new buffer that has the size 'm_Size + 1' and copy the contents of the previous buffer while also making
         // space for 'value' and inserting it.
-        const auto        diff          = pos - begin();
-        const usize       prev_capacity = m_Capacity;
-        const BufferType* temp          = m_Buffer;
+        const auto        diff = pos - begin();
+        const BufferType* temp = m_Buffer;
 
         ++m_Size;
-        m_Capacity = (usize)std::ceil((f64)m_Size / (f64)BitSize) * 2;
+        m_Capacity = std::ceil((f128)m_Size / (f32)BitSize) * 2;
         m_Buffer   = new BufferType[m_Capacity]{ 0 };
 
         for (usize i = 0, j = 0; i < m_Size; ++i)
         {
             if (i != diff)
+                // Black magic.
                 m_Buffer[i / BitSize] |= ((temp[j / BitSize] >> ((BitSize - 1) - j++ % BitSize)) & 1)
                                          << ((BitSize - 1) - i % BitSize);
             else
@@ -923,14 +972,12 @@ public:
     {
         // Second overload of Insert(): Merge a different vector's range at 'pos' using its iterators.
 
-        const auto  diff          = pos - begin();
-        const usize insert_size   = last - first;
-        const usize prev_capacity = m_Capacity;
-        const usize prev_size     = m_Size;
-        BufferType* temp          = m_Buffer;
+        const auto  diff        = pos - begin();
+        const usize insert_size = last - first;
+        BufferType* temp        = m_Buffer;
 
         m_Size += insert_size;
-        m_Capacity = (usize)std::ceil((f64)m_Size / (f64)BitSize) * 2;
+        m_Capacity = std::ceil((f128)m_Size / (f32)BitSize) * 2;
         m_Buffer   = new BufferType[m_Capacity]{ 0 };
 
         for (usize i = 0, j = 0; i < m_Size; ++i)
@@ -956,7 +1003,7 @@ public:
 
             BufferType* temp = m_Buffer;
             --m_Size;
-            m_Capacity = (usize)std::ceil((f64)m_Size / (f64)BitSize) * 2;
+            m_Capacity = std::ceil((f128)m_Size / (f32)BitSize) * 2;
             m_Buffer   = new BufferType[m_Capacity]{ 0 };
 
             for (usize i = 0, j = 0; i < prev_size; ++i)
@@ -1014,7 +1061,7 @@ public:
             const usize prev_size = m_Size;
             BufferType* temp      = m_Buffer;
             m_Size -= last - first;
-            m_Capacity = (usize)std::ceil((f64)m_Size / (f64)BitSize) * 2;
+            m_Capacity = std::ceil((f128)m_Size / (f32)BitSize) * 2;
             m_Buffer   = new BufferType[m_Capacity]{ 0 };
 
             /*
@@ -1129,9 +1176,9 @@ void TestVec()
 void TestBitset()
 {
     std::bitset<10> n;
-    Vec<bool>       vec  = { 1, 1, 1, 0, 0, 1, 1, 0, 0 };
+    Vec<bool>       vec  = { 1, 0, 1, 0, 0, 1, 1, 0, 0 };
     Vec<bool>       vec1 = { 1 };
-    std::cout << (vec & vec1) << std::endl;
+    std::cout << (vec ^ vec1) << std::endl;
     std::cout << "Count: " << vec.Count() << std::endl;
 }
 
