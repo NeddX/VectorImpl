@@ -1,4 +1,5 @@
 #include <bitset>
+#include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -21,6 +22,8 @@ using u32     = std::uint32_t;
 using i32     = std::int32_t;
 using u64     = std::uint64_t;
 using i64     = std::int64_t;
+using f32     = float;
+using f64     = double;
 
 template <typename T>
 class Vec
@@ -158,6 +161,9 @@ public:
     Vec(Vec<T>&& other)
     {
         // Move constructor.
+        if (&other == this)
+            return;
+
         m_Size           = other.m_Size;
         m_Capacity       = other.m_Capacity;
         other.m_Size     = 0;
@@ -439,6 +445,9 @@ public:
     }
     Vec<T>& operator=(Vec<T>&& other) noexcept
     {
+        if (&other == this)
+            return *this;
+
         Drop();
         m_Size           = other.m_Size;
         m_Capacity       = other.m_Capacity;
@@ -471,37 +480,49 @@ public:
     }
 };
 
+template <typename T>
+concept Integral = std::is_integral_v<T>;
+
 template <>
 class Vec<bool>
 {
+    using BufferType              = u8;
+    static constexpr auto BitSize = sizeof(BufferType) * 8;
+
 private:
-    u8*   m_Buffer   = nullptr;
-    usize m_Size     = 0;
-    usize m_Capacity = 0;
+    BufferType* m_Buffer   = nullptr;
+    usize       m_Size     = 0;
+    usize       m_Capacity = 0;
 
 public:
     // Proxy class for holding a 'reference' to a bit.
     class BitRef
     {
     private:
-        u8*   m_Ptr   = nullptr;
-        usize m_Index = 0;
+        BufferType* m_Ptr   = nullptr;
+        usize       m_Index = 0;
 
     public:
-        BitRef(u8* ptr, const usize index) : m_Ptr(ptr), m_Index(index) {}
+        BitRef(BufferType* ptr, const usize index) : m_Ptr(ptr), m_Index(index) {}
 
     public:
-        constexpr operator bool() const noexcept { return (m_Ptr[m_Index / 8] >> (7 - m_Index % 8) & 1); }
+        constexpr operator bool() const noexcept
+        {
+            return (m_Ptr[m_Index / BitSize] >> ((BitSize - 1) - m_Index % BitSize) & 1);
+        }
         inline BitRef& operator=(const bool value) noexcept
         {
             if (value)
-                m_Ptr[m_Index / 8] |= 1 << (7 - m_Index % 8);
+                m_Ptr[m_Index / BitSize] |= 1 << ((BitSize - 1) - m_Index % BitSize);
             else
-                m_Ptr[m_Index / 8] &= ~(1 << (7 - m_Index % 8));
+                m_Ptr[m_Index / BitSize] &= ~(1 << ((BitSize - 1) - m_Index % BitSize));
             return *this;
         }
         inline BitRef& operator=(const BitRef& value) noexcept { return this->operator=(value); }
-        constexpr bool operator~() const noexcept { return ~(((m_Ptr[m_Index / 8] >> (7 - m_Index % 8)) & 1)); }
+        constexpr bool operator~() const noexcept
+        {
+            return ~(((m_Ptr[m_Index / BitSize] >> ((BitSize - 1) - m_Index % BitSize)) & 1));
+        }
         inline BitRef& Flip() noexcept { return this->operator=(!*this); }
     };
     class ConstIterator;
@@ -512,7 +533,7 @@ public:
         using iterator_category = std::forward_iterator_tag;
         using difference_type   = ptrdiff;
         using value_type        = bool;
-        using pointer           = u8*;
+        using pointer           = BufferType*;
         using reference         = BitRef;
 
     private:
@@ -559,7 +580,7 @@ public:
         using iterator_category = std::forward_iterator_tag;
         using difference_type   = ptrdiff;
         using value_type        = bool;
-        using pointer           = const u8*;
+        using pointer           = const BufferType*;
         using reference         = const BitRef;
 
     private:
@@ -570,7 +591,7 @@ public:
         ConstIterator(pointer ptr, const usize index) noexcept : m_Ptr(ptr), m_Index(index) {}
 
     public:
-        inline reference      operator*() const noexcept { return BitRef((u8*)m_Ptr, m_Index); }
+        inline reference      operator*() const noexcept { return BitRef((BufferType*)m_Ptr, m_Index); }
         constexpr pointer     operator->() const noexcept = delete;
         inline ConstIterator& operator++() noexcept
         {
@@ -607,39 +628,69 @@ public:
 
 public:
     Vec() = default;
-    Vec(const usize size) : m_Size(size), m_Capacity(size * 2) { m_Buffer = new u8[m_Capacity / 8]; }
+    Vec(const usize size) noexcept : m_Size(size), m_Capacity((usize)std::ceil((f64)m_Size / (f64)BitSize) * 2)
+    {
+        m_Buffer = new BufferType[m_Capacity];
+    }
     Vec(const std::initializer_list<bool> list)
     {
         m_Size     = list.size();
-        m_Capacity = m_Size * 2;
-        m_Buffer   = new u8[m_Capacity / 8]{ 0 };
+        m_Capacity = (usize)std::ceil((f64)m_Size / (f64)BitSize) * 2;
+        m_Buffer   = new BufferType[m_Capacity]{ 0 };
         if (!m_Buffer)
             throw std::bad_alloc();
 
         usize i = 0;
         for (const auto& e : list)
         {
-            m_Buffer[i / 8] |= e << (7 - i % 8);
+            m_Buffer[i / BitSize] |= e << ((BitSize - 1) - i % BitSize);
             ++i;
+        }
+    }
+    Vec(const Vec<bool>& other) noexcept
+    {
+        if (other.m_Buffer)
+        {
+            m_Size     = other.m_Size;
+            m_Capacity = other.m_Capacity;
+            m_Buffer   = new BufferType[m_Capacity];
+            std::memcpy(m_Buffer, other.m_Buffer, std::ceil((f64)(m_Size / BitSize)));
+        }
+    }
+    Vec(Vec<bool>&& other) noexcept
+    {
+        if (&other == this)
+            return;
+
+        if (other.m_Buffer && other.m_Size)
+        {
+            std::swap(m_Size, other.m_Size);
+            std::swap(m_Capacity, other.m_Capacity);
+            std::swap(m_Buffer, other.m_Buffer);
         }
     }
     ~Vec() { Drop(); }
 
 public:
-    constexpr usize Size() const noexcept { return m_Size; }
-    constexpr usize Capacity() const noexcept { return m_Capacity; }
-    constexpr bool  Empty() const noexcept { return m_Size == 0; }
-    constexpr u8*   Data() const noexcept { return m_Buffer; }
-    constexpr usize MaxSize() const noexcept { return std::numeric_limits<usize>::max() / sizeof(bool); }
+    constexpr usize       Size() const noexcept { return m_Size; }
+    constexpr usize       Capacity() const noexcept { return m_Capacity; }
+    constexpr bool        Empty() const noexcept { return m_Size == 0; }
+    constexpr BufferType* Data() const noexcept { return m_Buffer; }
 
 public:
     inline Iterator begin() const noexcept { return Iterator(m_Buffer, 0); }
     inline Iterator end() const noexcept { return Iterator(m_Buffer, m_Size); }
 
 private:
-    constexpr void BitInsert(const bool e, const usize index) noexcept { m_Buffer[index / 8] |= e << (7 - index % 8); }
-    constexpr bool BitGet(const usize index) const noexcept { return (m_Buffer[index / 8] >> (7 - index % 8)) & 1; }
-    void           Realloc(const usize newSize, const bool reserveExtra = true)
+    constexpr void BitInsert(const bool e, const usize index) noexcept
+    {
+        m_Buffer[index / BitSize] |= e << ((BitSize - 1) - index % BitSize);
+    }
+    constexpr bool BitAt(const usize index) const noexcept
+    {
+        return (m_Buffer[index / BitSize] >> ((BitSize - 1) - index % BitSize)) & 1;
+    }
+    void Realloc(const usize newSize, const bool reserveExtra = true)
     {
         // Reallocates memory to accommodate the new requested size. If there was a previous m_Buffer,
         // it will simply creating a new buffer, copy the previous elements into it and release the previous one,
@@ -652,27 +703,27 @@ private:
         m_Size                = newSize;
 
         if (reserveExtra)
-            m_Capacity = newSize * 2;
+            m_Capacity = std::ceil((f64)(newSize * 2.0 / BitSize));
         else
-            m_Capacity = newSize;
+            m_Capacity = std::ceil(newSize / BitSize);
 
         if (prev_size > 0)
         {
-            u8* temp = m_Buffer;
-            m_Buffer = new u8[m_Capacity / 8];
+            BufferType* temp = m_Buffer;
+            m_Buffer         = new BufferType[m_Capacity];
             if (!m_Buffer)
                 throw std::bad_alloc();
             if (prev_size < m_Size)
-                std::memcpy(m_Buffer, temp, prev_size * sizeof(u8));
+                std::memcpy(m_Buffer, temp, prev_size * BitSize);
             else
-                std::memcpy(m_Buffer, temp, m_Size * sizeof(u8));
+                std::memcpy(m_Buffer, temp, m_Size * BitSize);
             delete[] temp;
         }
         else
         {
             if (m_Buffer)
                 delete[] m_Buffer;
-            m_Buffer = new u8[m_Capacity / 8]{ 0 };
+            m_Buffer = new BufferType[m_Capacity]{ 0 };
             if (!m_Buffer)
                 throw std::bad_alloc();
         }
@@ -692,40 +743,76 @@ public:
     {
         for (usize i = 0; i < m_Size; ++i)
         {
-            if (other.m_Size < i)
+            if (other.m_Size > i)
                 m_Buffer[i] &= other.m_Buffer[i];
             else
                 m_Buffer[i] &= 0;
         }
         return *this;
     }
+    inline Vec<bool> operator&(const Vec<bool>& other) const noexcept
+    {
+        auto cpy = *this;
+        for (usize i = 0; i < m_Size / BitSize; ++i)
+        {
+            if (other.m_Size / BitSize >= i)
+                cpy.m_Buffer[i] &= other.m_Buffer[i];
+            else
+                cpy.m_Buffer[i] &= 0;
+        }
+        return cpy;
+    }
     inline Vec<bool>& operator|=(const Vec<bool>& other) noexcept
     {
-        for (usize i = 0; i < m_Size; ++i)
+        for (usize i = 0; i < m_Size / BitSize; ++i)
         {
-            if (other.m_Size < i)
+            if (other.m_Size / BitSize >= i)
                 m_Buffer[i] |= other.m_Buffer[i];
             else
                 m_Buffer[i] |= 0;
         }
         return *this;
     }
+    inline Vec<bool> operator|=(const Vec<bool>& other) const noexcept
+    {
+        auto cpy = *this;
+        for (usize i = 0; i < m_Size / BitSize; ++i)
+        {
+            if (other.m_Size / BitSize >= i)
+                cpy.m_Buffer[i] |= other.m_Buffer[i];
+            else
+                cpy.m_Buffer[i] |= 0;
+        }
+        return cpy;
+    }
     inline Vec<bool>& operator^=(const Vec<bool>& other) noexcept
     {
-        for (usize i = 0; i < m_Size; ++i)
+        for (usize i = 0; i < m_Size / BitSize; ++i)
         {
-            if (other.m_Size < i)
+            if (other.m_Size / BitSize >= i)
                 m_Buffer[i] ^= other.m_Buffer[i];
             else
                 m_Buffer[i] ^= 0;
         }
         return *this;
     }
+    inline Vec<bool> operator^(const Vec<bool>& other) const noexcept
+    {
+        auto cpy = *this;
+        for (usize i = 0; i > m_Size / BitSize; ++i)
+        {
+            if (other.m_Size / BitSize >= i)
+                cpy.m_Buffer[i] ^= other.m_Buffer[i];
+            else
+                cpy.m_Buffer[i] ^= 0;
+        }
+        return cpy;
+    }
     inline Vec<bool> operator~() const noexcept
     {
         auto copy = *this;
-        for (usize i = 0; i < m_Size; ++i)
-            copy.m_Buffer[i / 8] = ~m_Buffer[i / 8];
+        for (usize i = 0; i < m_Size / BitSize; ++i)
+            copy.m_Buffer[i] = ~m_Buffer[i];
         return copy;
     }
 
@@ -747,7 +834,7 @@ public:
     {
         // Pop the element and return it efficiently while also performing bounds checks.
         if (m_Size > 0)
-            return std::move(BitGet(m_Size--));
+            return std::move(BitAt(m_Size--));
         else
             throw std::out_of_range("Tried calling Pop() on an empty vector.");
     }
@@ -755,7 +842,7 @@ public:
     {
         // Grab a reference to the first element with bounds checking.
         if (m_Size > 0)
-            return BitGet(0);
+            return BitAt(0);
         else
             throw std::out_of_range("Tried calling Front() on an empty vector.");
     }
@@ -763,7 +850,7 @@ public:
     {
         // Same as above except we grab a reference to the last element.
         if (m_Size > 0)
-            return BitGet(m_Size - 1);
+            return BitAt(m_Size - 1);
         else
             throw std::out_of_range("Tried calling Back() on an empty vector.");
     }
@@ -771,7 +858,7 @@ public:
     {
         // Same as the subscript operator but with bounds checking.
         if (m_Size - 1 >= index)
-            return BitGet(index);
+            return BitAt(index);
         else
             throw std::out_of_range("Index out of bounds.");
     }
@@ -795,7 +882,7 @@ public:
         usize i = 0;
         for (const auto& e : list)
         {
-            m_Buffer[i / 8] |= e << (7 - i % 8);
+            m_Buffer[i / BitSize] |= e << ((BitSize - 1) - i % BitSize);
             ++i;
         }
     }
@@ -813,20 +900,21 @@ public:
         // - begin). The distance (diff) here is our index at which we will insert 'value' onto. We do this by creating
         // a new buffer that has the size 'm_Size + 1' and copy the contents of the previous buffer while also making
         // space for 'value' and inserting it.
-        const auto  diff          = pos - begin();
-        const usize prev_capacity = m_Capacity;
-        const u8*   temp          = m_Buffer;
+        const auto        diff          = pos - begin();
+        const usize       prev_capacity = m_Capacity;
+        const BufferType* temp          = m_Buffer;
 
         ++m_Size;
-        m_Capacity = m_Size * 2;
-        m_Buffer   = new u8[m_Capacity]{ 0 };
+        m_Capacity = (usize)std::ceil((f64)m_Size / (f64)BitSize) * 2;
+        m_Buffer   = new BufferType[m_Capacity]{ 0 };
 
         for (usize i = 0, j = 0; i < m_Size; ++i)
         {
             if (i != diff)
-                m_Buffer[i / 8] |= ((temp[j / 8] >> (7 - j++ % 8)) & 1) << (7 - i % 8);
+                m_Buffer[i / BitSize] |= ((temp[j / BitSize] >> ((BitSize - 1) - j++ % BitSize)) & 1)
+                                         << ((BitSize - 1) - i % BitSize);
             else
-                m_Buffer[i / 8] |= value << (7 - i % 8);
+                m_Buffer[i / BitSize] |= value << ((BitSize - 1) - i % BitSize);
         }
 
         delete[] temp;
@@ -839,20 +927,21 @@ public:
         const usize insert_size   = last - first;
         const usize prev_capacity = m_Capacity;
         const usize prev_size     = m_Size;
-        u8*         temp          = m_Buffer;
+        BufferType* temp          = m_Buffer;
 
         m_Size += insert_size;
-        m_Capacity = m_Size * 2;
-        m_Buffer   = new u8[m_Capacity]{ 0 };
+        m_Capacity = (usize)std::ceil((f64)m_Size / (f64)BitSize) * 2;
+        m_Buffer   = new BufferType[m_Capacity]{ 0 };
 
         for (usize i = 0, j = 0; i < m_Size; ++i)
         {
             if (i != diff)
-                m_Buffer[i / 8] |= ((temp[j / 8] >> (7 - j++ % 8)) & 1) << (7 - i % 8);
+                m_Buffer[i / BitSize] |= ((temp[j / BitSize] >> ((BitSize - 1) - j++ % BitSize)) & 1)
+                                         << ((BitSize - 1) - i % BitSize);
             else
             {
                 for (auto it = first; it != last; ++it)
-                    m_Buffer[i / 8] |= *it << (7 - i++ % 8);
+                    m_Buffer[i / BitSize] |= *it << ((BitSize - 1) - i++ % BitSize);
             }
         }
 
@@ -865,14 +954,15 @@ public:
             const usize   prev_size = m_Size;
             const ptrdiff index     = pos - begin();
 
-            u8* temp = m_Buffer;
+            BufferType* temp = m_Buffer;
             --m_Size;
-            m_Capacity = m_Size * 2;
-            m_Buffer   = new u8[m_Capacity]{ 0 };
+            m_Capacity = (usize)std::ceil((f64)m_Size / (f64)BitSize) * 2;
+            m_Buffer   = new BufferType[m_Capacity]{ 0 };
 
             for (usize i = 0, j = 0; i < prev_size; ++i)
                 if (i != index)
-                    m_Buffer[j++ / 8] |= ((temp[i / 8] >> (7 - i % 8)) & 1) << (7 - i % 8);
+                    m_Buffer[j++ / BitSize] |= ((temp[i / BitSize] >> ((BitSize - 1) - i % BitSize)) & 1)
+                                               << ((BitSize - 1) - i % BitSize);
             delete[] temp;
         }
         else
@@ -884,9 +974,9 @@ public:
         {
             const usize prev_capacity = m_Capacity;
             m_Capacity                = newCapacity;
-            u8* temp                  = m_Buffer;
-            m_Buffer                  = new u8[m_Capacity];
-            std::memcpy(m_Buffer, temp, prev_capacity * sizeof(u8));
+            BufferType* temp          = m_Buffer;
+            m_Buffer                  = new BufferType[m_Capacity];
+            std::memcpy(m_Buffer, temp, prev_capacity * BitSize);
             delete[] temp;
         }
     }
@@ -895,7 +985,7 @@ public:
         std::string str;
         str.resize(m_Size);
         for (usize i = 0; i < m_Size; ++i)
-            str[i] = 48 + BitGet(i);
+            str[i] = 48 + BitAt(i);
         return str;
     }
     inline void Flip() noexcept
@@ -922,10 +1012,10 @@ public:
         if (!Empty())
         {
             const usize prev_size = m_Size;
-            u8*         temp      = m_Buffer;
+            BufferType* temp      = m_Buffer;
             m_Size -= last - first;
-            m_Capacity = m_Size * 2;
-            m_Buffer   = new u8[m_Capacity]{ 0 };
+            m_Capacity = (usize)std::ceil((f64)m_Size / (f64)BitSize) * 2;
+            m_Buffer   = new BufferType[m_Capacity]{ 0 };
 
             /*
             std::copy(temp, temp + (first - temp), m_Buffer);
@@ -938,7 +1028,7 @@ public:
             throw std::out_of_range("Tried calling Erase() on an empty vector.");
     }
     constexpr void Clear() noexcept { m_Size = 0; }
-    constexpr void Reset() noexcept { std::memset(m_Buffer, 0, m_Capacity / 8); }
+    constexpr void Reset() noexcept { std::memset(m_Buffer, 0, m_Capacity); }
 
 public:
     friend std::ostream& operator<<(std::ostream& stream, const Vec<bool>& other) noexcept
@@ -947,7 +1037,7 @@ public:
         const auto size = other.Size();
         for (usize i = 0; i < size; ++i)
         {
-            stream << ((other.m_Buffer[i / 8] >> (7 - i % 8)) & 1);
+            stream << ((other.m_Buffer[i / BitSize] >> ((BitSize - 1) - i % BitSize)) & 1);
             if (i + 1 != size)
                 stream << ", ";
         }
@@ -1039,8 +1129,9 @@ void TestVec()
 void TestBitset()
 {
     std::bitset<10> n;
-    Vec<bool>       vec = { 1, 1, 1, 0, 0, 1, 1, 0, 0 };
-    std::cout << ~vec << std::endl;
+    Vec<bool>       vec  = { 1, 1, 1, 0, 0, 1, 1, 0, 0 };
+    Vec<bool>       vec1 = { 1 };
+    std::cout << (vec & vec1) << std::endl;
     std::cout << "Count: " << vec.Count() << std::endl;
 }
 
