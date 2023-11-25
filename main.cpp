@@ -33,7 +33,6 @@ private:
     usize m_Size     = 0;
     usize m_Capacity = 0;
 
-    // Nested iterator classes (const and non-const) for iteration.
 public:
     class ConstIterator;
     class Iterator
@@ -140,7 +139,6 @@ public:
     Vec(const usize size) : m_Size(size), m_Capacity(size * 2), m_Buffer(new T[m_Capacity]) {}
     Vec(const std::initializer_list<T> list)
     {
-        // Initializer list constructor.
         m_Size     = list.size();
         m_Capacity = m_Size * 2;
         m_Buffer   = new T[m_Capacity];
@@ -150,7 +148,6 @@ public:
     }
     Vec(const Vec<T>& other)
     {
-        // Copy constructor.
         if (&other == this)
             return;
 
@@ -163,7 +160,6 @@ public:
     }
     Vec(Vec<T>&& other)
     {
-        // Move constructor.
         if (&other == this)
             return;
 
@@ -191,11 +187,6 @@ public:
 private:
     void Realloc(const usize newSize, const bool reserveExtra = true)
     {
-        std::vector<int> a;
-        // Reallocates memory to accommodate the new requested size. If there was a previous m_Buffer,
-        // it will simply creating a new buffer, copy the previous elements into it and release the previous one,
-        // otherwise it will only allocate a new buffer.
-        // It also doubles the capacity if reserveExtra is set to true.
         if (newSize == m_Size)
             return;
 
@@ -230,7 +221,6 @@ private:
     }
     inline void Drop() noexcept
     {
-        // Disposes our vector.
         delete[] m_Buffer;
         m_Buffer   = nullptr;
         m_Size     = 0;
@@ -240,9 +230,6 @@ private:
 public:
     void Push(const T& e)
     {
-        // Reallocate if there's not enough space, since Realloc() changes m_Size, we have to accommodate for it
-        // by doing m_Size - 1 (- 1 because we increase our storage space by 1), otherwise just straight up assign the
-        // element.
         if (m_Size >= m_Capacity)
         {
             Realloc(m_Size + 1);
@@ -253,7 +240,6 @@ public:
     }
     inline T Pop()
     {
-        // Pop the element and return it efficiently while also performing bounds checks.
         if (m_Size > 0)
             return std::move(m_Buffer[m_Size--]);
         else
@@ -261,7 +247,13 @@ public:
     }
     inline T& Front()
     {
-        // Grab a reference to the first element with bounds checking.
+        if (m_Size > 0)
+            return m_Buffer[0];
+        else
+            throw std::out_of_range("Tried calling Front() on an empty vector.");
+    }
+    inline const T& Front() const
+    {
         if (m_Size > 0)
             return m_Buffer[0];
         else
@@ -269,7 +261,13 @@ public:
     }
     inline T& Back()
     {
-        // Same as above except we grab a reference to the last element.
+        if (m_Size > 0)
+            return m_Buffer[m_Size - 1];
+        else
+            throw std::out_of_range("Tried calling Back() on an empty vector.");
+    }
+    inline const T& Back() const
+    {
         if (m_Size > 0)
             return m_Buffer[m_Size - 1];
         else
@@ -277,7 +275,13 @@ public:
     }
     inline T& At(const usize index)
     {
-        // Same as the subscript operator but with bounds checking.
+        if (m_Size - 1 >= index)
+            return m_Buffer[index];
+        else
+            throw std::out_of_range("Index out of bounds.");
+    }
+    inline const T& At(const usize index) const
+    {
         if (m_Size - 1 >= index)
             return m_Buffer[index];
         else
@@ -285,26 +289,21 @@ public:
     }
     void Assign(const usize count, const T& value)
     {
-        // First overload of Assign(): Fills the vector with 'count' times 'value'.
         Realloc(count);
         std::fill(begin(), end(), value);
     }
     void Assign(const ConstIterator begin, const ConstIterator end)
     {
-        // Second overload of Assign(): Fills the contents of this vector with the range of the other
-        // using its iterators.
         Realloc(end - begin);
         std::copy(begin, end, this->begin());
     }
     void Assign(const std::initializer_list<T> list)
     {
-        // Third overload of Assign(): Fills the vector with the contents of the supplied initializer list.
         Realloc(list.size());
         std::copy(list.begin(), list.end(), begin());
     }
     constexpr void Swap(Vec<T>& other)
     {
-        // Swaps the fields, creating an illusion of a swap.
         std::swap(m_Size, other.m_Size);
         std::swap(m_Capacity, other.m_Capacity);
         std::swap(m_Buffer, other.m_Buffer);
@@ -312,10 +311,6 @@ public:
     inline void Resize(const usize newSize) { Realloc(newSize); }
     void        Insert(const ConstIterator pos, const T& value)
     {
-        // First overload of Insert(): Inserts 'value' at 'diff', which is the distance between these two iterators (pos
-        // - begin). The distance (diff) here is our index at which we will insert 'value' onto. We do this by creating
-        // a new buffer that has the size 'm_Size + 1' and copy the contents of the previous buffer while also making
-        // space for 'value' and inserting it.
         const auto diff = pos - begin();
         const T*   temp = m_Buffer;
 
@@ -330,8 +325,6 @@ public:
     }
     void Insert(const ConstIterator pos, const ConstIterator first, const ConstIterator last)
     {
-        // Second overload of Insert(): Merge a different vector's range at 'pos' using its iterators.
-
         const auto  diff        = pos - begin();
         const usize insert_size = last - first;
         const usize prev_size   = m_Size;
@@ -429,14 +422,15 @@ public:
     }
 
 public:
-    constexpr T& operator[](const usize index) noexcept { return m_Buffer[index]; }
-    Vec<T>&      operator=(const std::initializer_list<T> list)
+    constexpr T&       operator[](const usize index) noexcept { return m_Buffer[index]; }
+    constexpr const T& operator[](const usize index) const noexcept { return m_Buffer[index]; }
+    inline Vec<T>&     operator=(const std::initializer_list<T> list)
     {
         Realloc(list.size());
         std::copy(list.begin(), list.end(), begin());
         return *this;
     }
-    Vec<T>& operator=(const Vec<T>& other)
+    inline Vec<T>& operator=(const Vec<T>& other)
     {
         if (&other == this)
             return *this;
@@ -445,7 +439,7 @@ public:
         std::memcpy(m_Buffer, other.m_Buffer, m_Size * sizeof(T));
         return *this;
     }
-    Vec<T>& operator=(Vec<T>&& other) noexcept
+    inline Vec<T>& operator=(Vec<T>&& other) noexcept
     {
         if (&other == this)
             return *this;
@@ -458,8 +452,11 @@ public:
         std::swap(m_Buffer, other.m_Buffer);
         return *this;
     }
-    Vec<T>& operator<<(const Vec<T>& other)
+    inline Vec<T>& operator<<(const Vec<T>& other)
     {
+        if (&other == this)
+            return *this;
+
         const usize prev_size = m_Size;
         Realloc(m_Size + other.m_Size);
         std::copy(other.begin(), other.end(), begin() + prev_size);
@@ -488,6 +485,8 @@ concept Integral = std::is_integral_v<T>;
 template <>
 class Vec<bool>
 {
+    // Based on std::bitset
+
     using BufferType              = u8;
     static constexpr auto BitSize = sizeof(BufferType) * 8;
 
@@ -497,7 +496,6 @@ private:
     usize       m_Capacity = 0;
 
 public:
-    // Proxy class for holding a 'reference' to a bit.
     class BitRef
     {
     private:
@@ -520,7 +518,7 @@ public:
                 m_Ptr[m_Index / BitSize] &= ~(1 << ((BitSize - 1) - m_Index % BitSize));
             return *this;
         }
-        inline BitRef& operator=(const BitRef& value) noexcept { return this->operator=(value); }
+        inline BitRef& operator=(const BitRef& value) noexcept { return this->operator=(value.operator bool()); }
         constexpr bool operator~() const noexcept
         {
             return ~(((m_Ptr[m_Index / BitSize] >> ((BitSize - 1) - m_Index % BitSize)) & 1));
@@ -697,15 +695,12 @@ private:
     }
     void Realloc(const usize newSize, const bool reserveExtra = true)
     {
-        // Reallocates memory to accommodate the new requested size. If there was a previous m_Buffer,
-        // it will simply creating a new buffer, copy the previous elements into it and release the previous one,
-        // otherwise it will only allocate a new buffer.
-        // It also doubles the capacity if reserveExtra is set to true.
         if (newSize == m_Size)
             return;
 
-        const usize prev_size = m_Size;
-        m_Size                = newSize;
+        const usize prev_size     = m_Size;
+        const usize prev_capacity = m_Capacity;
+        m_Size                    = newSize;
 
         if (reserveExtra)
             m_Capacity = std::ceil((f128)newSize * 2.0 / (f32)BitSize);
@@ -719,9 +714,9 @@ private:
             if (!m_Buffer)
                 throw std::bad_alloc();
             if (prev_size < m_Size)
-                std::memcpy(m_Buffer, temp, prev_size * BitSize);
+                std::memcpy(m_Buffer, temp, prev_capacity * sizeof(BufferType));
             else
-                std::memcpy(m_Buffer, temp, m_Size * BitSize);
+                std::memcpy(m_Buffer, temp, m_Capacity * sizeof(BufferType));
             delete[] temp;
         }
         else
@@ -735,7 +730,6 @@ private:
     }
     inline void Drop() noexcept
     {
-        // Disposes our vector.
         delete[] m_Buffer;
         m_Buffer   = nullptr;
         m_Size     = 0;
@@ -743,8 +737,9 @@ private:
     }
 
 public:
-    inline BitRef     operator[](const usize index) noexcept { return BitRef(m_Buffer, index); }
-    inline Vec<bool>& operator=(const Vec<bool>& other) noexcept
+    inline BitRef       operator[](const usize index) noexcept { return BitRef(m_Buffer, index); }
+    inline const BitRef operator[](const usize index) const noexcept { return BitRef(m_Buffer, index); }
+    inline Vec<bool>&   operator=(const Vec<bool>& other) noexcept
     {
         if (&other == this)
             return *this;
@@ -844,16 +839,101 @@ public:
     }
     inline Vec<bool>& operator<<=(const usize pos) noexcept
     {
-        BufferType t{};
-        for (usize i = m_Size / BitSize; i >= 0; --i)
+        BufferType t1{}, t2{};
+        for (usize i = m_Size / BitSize; i >= 0 && i != (usize)-1; --i)
         {
-            // 0101
-            // 0100
-            //
-            t = m_Buffer[i];
-            t >>= (sizeof(BufferType) * 8) - pos;
+            if (i == m_Size / BitSize)
+            {
+                t1 = m_Buffer[i];
+                t1 >>= (sizeof(BufferType) * 8) - pos;
+                m_Buffer[i] <<= pos;
+            }
+            else
+            {
+                t2 = m_Buffer[i];
+                t2 >>= (sizeof(BufferType) * 8) - pos;
+                m_Buffer[i] = (m_Buffer[i] << pos) | t1;
+                t1          = t2;
+            }
+        }
+        return *this;
+    }
+    inline Vec<bool>& operator>>=(const usize pos) noexcept
+    {
+        BufferType t1{}, t2{};
+        for (usize i = 0; i < m_Size / BitSize; ++i)
+        {
+            if (i == 0)
+            {
+                t1 = m_Buffer[i];
+                t1 <<= (sizeof(BufferType) * 8) - pos;
+                m_Buffer[i] >>= pos;
+            }
+            else
+            {
+                t2 = m_Buffer[i];
+                t2 <<= (sizeof(BufferType) * 8) - pos;
+                m_Buffer[i] = (m_Buffer[i] >> pos) | t1;
+                t1          = t2;
+            }
+        }
+        return *this;
+    }
+    inline Vec<bool> operator>>=(const usize pos) const noexcept
+    {
+        auto       cpy = *this;
+        BufferType t1{}, t2{};
+        for (usize i = 0; i < m_Size / BitSize; ++i)
+        {
+            if (i == 0)
+            {
+                t1 = cpy.m_Buffer[i];
+                t1 <<= (sizeof(BufferType) * 8) - pos;
+                cpy.m_Buffer[i] >>= pos;
+            }
+            else
+            {
+                t2 = cpy.m_Buffer[i];
+                t2 <<= (sizeof(BufferType) * 8) - pos;
+                cpy.m_Buffer[i] = (cpy.m_Buffer[i] >> pos) | t1;
+                t1              = t2;
+            }
+        }
+        return cpy;
+    }
+    inline Vec<bool> operator<<(const usize pos) const noexcept
+    {
+        auto       cpy = *this;
+        BufferType t1{}, t2{};
+        for (usize i = cpy.m_Size / BitSize; i >= 0 && i != (usize)-1; --i)
+        {
+            if (i == cpy.m_Size / BitSize)
+            {
+                t1 = cpy.m_Buffer[i];
+                t1 >>= (sizeof(BufferType) * 8) - pos;
+                cpy.m_Buffer[i] <<= pos;
+            }
+            else
+            {
+                t2 = cpy.m_Buffer[i];
+                t2 >>= (sizeof(BufferType) * 8) - pos;
+                cpy.m_Buffer[i] = (cpy.m_Buffer[i] << pos) | t1;
+                t1              = t2;
+            }
+        }
+        return cpy;
+    }
+    inline Vec<bool>& operator<<(const Vec<bool>& other) noexcept
+    {
+        if (&other == this)
+            return *this;
 
-            m_Buffer[i] <<= pos;
+        if (other.m_Size > 0)
+        {
+            const usize prev_size = m_Size;
+            Realloc(other.m_Size + m_Size);
+            for (usize i = prev_size; i < m_Size; ++i)
+                this->operator[](i) = other[i - prev_size];
         }
         return *this;
     }
@@ -868,9 +948,6 @@ public:
 public:
     void Push(const bool e)
     {
-        // Reallocate if there's not enough space, since Realloc() changes m_Size, we have to accommodate for it
-        // by doing m_Size - 1 (- 1 because we increase our storage space by 1), otherwise just straight up assign the
-        // element.
         if (m_Size >= m_Capacity)
         {
             Realloc(m_Size + 1);
@@ -881,140 +958,60 @@ public:
     }
     constexpr bool Pop()
     {
-        // Pop the element and return it efficiently while also performing bounds checks.
         if (m_Size > 0)
             return BitAt(m_Size--);
         else
             throw std::out_of_range("Tried calling Pop() on an empty vector.");
     }
-    constexpr bool Front()
+    inline BitRef Front()
     {
-        // Grab a reference to the first element with bounds checking.
         if (m_Size > 0)
-            return BitAt(0);
+            return this->operator[](0);
         else
             throw std::out_of_range("Tried calling Front() on an empty vector.");
     }
-    constexpr bool Back()
+    inline const BitRef Front() const
     {
-        // Same as above except we grab a reference to the last element.
         if (m_Size > 0)
-            return BitAt(m_Size - 1);
+            return this->operator[](0);
+        else
+            throw std::out_of_range("Tried calling Front() on an empty vector.");
+    }
+    inline BitRef Back()
+    {
+        if (m_Size > 0)
+            return this->operator[](m_Size - 1);
         else
             throw std::out_of_range("Tried calling Back() on an empty vector.");
     }
-    constexpr bool At(const usize index)
+    inline const BitRef Back() const
     {
-        // Same as the subscript operator but with bounds checking.
+        if (m_Size > 0)
+            return this->operator[](m_Size - 1);
+        else
+            throw std::out_of_range("Tried calling Back() on an empty vector.");
+    }
+    inline BitRef At(const usize index)
+    {
         if (m_Size - 1 >= index)
-            return BitAt(index);
+            return this->operator[](index);
         else
             throw std::out_of_range("Index out of bounds.");
     }
-    void Assign(const usize count, const bool value)
+    inline const BitRef At(const usize index) const
     {
-        // First overload of Assign(): Fills the vector with 'count' times 'value'.
-        Realloc(count);
-        std::fill(begin(), end(), value);
-    }
-    void Assign(const Iterator begin, const Iterator end)
-    {
-        // Second overload of Assign(): Fills the contents of this vector with the range of the other
-        // using its iterators.
-        Realloc(end - begin);
-        std::copy(begin, end, this->begin());
-    }
-    void Assign(const std::initializer_list<bool> list)
-    {
-        // Third overload of Assign(): Fills the vector with the contents of the supplied initializer list.
-        Realloc(list.size());
-        usize i = 0;
-        for (const auto& e : list)
-        {
-            m_Buffer[i / BitSize] |= e << ((BitSize - 1) - i % BitSize);
-            ++i;
-        }
+        if (m_Size - 1 >= index)
+            return this->operator[](index);
+        else
+            throw std::out_of_range("Index out of bounds.");
     }
     constexpr void Swap(Vec<bool>& other)
     {
-        // Swaps the fields, creating an illusion of a swap.
         std::swap(m_Size, other.m_Size);
         std::swap(m_Capacity, other.m_Capacity);
         std::swap(m_Buffer, other.m_Buffer);
     }
-    inline void Resize(const usize newSize) { Realloc(newSize); }
-    void        Insert(const Iterator pos, const bool value)
-    {
-        // First overload of Insert(): Inserts 'value' at 'diff', which is the distance between these two iterators (pos
-        // - begin). The distance (diff) here is our index at which we will insert 'value' onto. We do this by creating
-        // a new buffer that has the size 'm_Size + 1' and copy the contents of the previous buffer while also making
-        // space for 'value' and inserting it.
-        const auto        diff = pos - begin();
-        const BufferType* temp = m_Buffer;
-
-        ++m_Size;
-        m_Capacity = std::ceil((f128)m_Size / (f32)BitSize) * 2;
-        m_Buffer   = new BufferType[m_Capacity]{ 0 };
-
-        for (usize i = 0, j = 0; i < m_Size; ++i)
-        {
-            if (i != diff)
-                // Black magic.
-                m_Buffer[i / BitSize] |= ((temp[j / BitSize] >> ((BitSize - 1) - j++ % BitSize)) & 1)
-                                         << ((BitSize - 1) - i % BitSize);
-            else
-                m_Buffer[i / BitSize] |= value << ((BitSize - 1) - i % BitSize);
-        }
-
-        delete[] temp;
-    }
-    void Insert(const Iterator pos, const Iterator first, const Iterator last)
-    {
-        // Second overload of Insert(): Merge a different vector's range at 'pos' using its iterators.
-
-        const auto  diff        = pos - begin();
-        const usize insert_size = last - first;
-        BufferType* temp        = m_Buffer;
-
-        m_Size += insert_size;
-        m_Capacity = std::ceil((f128)m_Size / (f32)BitSize) * 2;
-        m_Buffer   = new BufferType[m_Capacity]{ 0 };
-
-        for (usize i = 0, j = 0; i < m_Size; ++i)
-        {
-            if (i != diff)
-                m_Buffer[i / BitSize] |= ((temp[j / BitSize] >> ((BitSize - 1) - j++ % BitSize)) & 1)
-                                         << ((BitSize - 1) - i % BitSize);
-            else
-            {
-                for (auto it = first; it != last; ++it)
-                    m_Buffer[i / BitSize] |= *it << ((BitSize - 1) - i++ % BitSize);
-            }
-        }
-
-        delete[] temp;
-    }
-    void Erase(const Iterator pos)
-    {
-        if (!Empty())
-        {
-            const usize   prev_size = m_Size;
-            const ptrdiff index     = pos - begin();
-
-            BufferType* temp = m_Buffer;
-            --m_Size;
-            m_Capacity = std::ceil((f128)m_Size / (f32)BitSize) * 2;
-            m_Buffer   = new BufferType[m_Capacity]{ 0 };
-
-            for (usize i = 0, j = 0; i < prev_size; ++i)
-                if (i != index)
-                    m_Buffer[j++ / BitSize] |= ((temp[i / BitSize] >> ((BitSize - 1) - i % BitSize)) & 1)
-                                               << ((BitSize - 1) - i % BitSize);
-            delete[] temp;
-        }
-        else
-            throw std::out_of_range("Tried calling Erase() on an empty vector.");
-    }
+    inline void    Resize(const usize newSize) { Realloc(newSize); }
     constexpr void Reserve(const usize newCapacity)
     {
         if (newCapacity > m_Capacity)
@@ -1023,7 +1020,7 @@ public:
             m_Capacity                = newCapacity;
             BufferType* temp          = m_Buffer;
             m_Buffer                  = new BufferType[m_Capacity];
-            std::memcpy(m_Buffer, temp, prev_capacity * BitSize);
+            std::memcpy(m_Buffer, temp, (prev_capacity / BitSize) * sizeof(BufferType));
             delete[] temp;
         }
     }
@@ -1054,26 +1051,7 @@ public:
             count = (b) ? ++count : count;
         return count;
     }
-    void Erase(const Iterator first, const Iterator last)
-    {
-        if (!Empty())
-        {
-            const usize prev_size = m_Size;
-            BufferType* temp      = m_Buffer;
-            m_Size -= last - first;
-            m_Capacity = std::ceil((f128)m_Size / (f32)BitSize) * 2;
-            m_Buffer   = new BufferType[m_Capacity]{ 0 };
 
-            /*
-            std::copy(temp, temp + (first - temp), m_Buffer);
-            std::copy(temp + (last - first) + (first - temp), temp + prev_size, m_Buffer + (first - temp));
-            */
-
-            delete[] temp;
-        }
-        else
-            throw std::out_of_range("Tried calling Erase() on an empty vector.");
-    }
     constexpr void Clear() noexcept { m_Size = 0; }
     constexpr void Reset() noexcept { std::memset(m_Buffer, 0, m_Capacity); }
 
@@ -1177,9 +1155,13 @@ void TestBitset()
 {
     std::bitset<10> n;
     Vec<bool>       vec  = { 1, 0, 1, 0, 0, 1, 1, 0, 0 };
-    Vec<bool>       vec1 = { 1 };
-    std::cout << (vec ^ vec1) << std::endl;
-    std::cout << "Count: " << vec.Count() << std::endl;
+    Vec<bool>       vec1 = { 1, 1, 1, 0, 0, 1, 1, 0, 1 };
+    vec << vec1;
+    std::cout << vec.ToString() << std::endl;
+    vec <<= 3;
+    std::cout << vec.ToString() << std::endl;
+    vec >>= 1;
+    std::cout << vec.ToString() << std::endl;
 }
 
 int main()
