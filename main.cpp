@@ -523,7 +523,41 @@ public:
         {
             return ~(((m_Ptr[m_Index / BitSize] >> ((BitSize - 1) - m_Index % BitSize)) & 1));
         }
+        constexpr bool operator&(const bool value) const noexcept
+        {
+            return (bool)((u8)value & (u8)this->operator bool());
+        }
+        inline BitRef& operator&=(const bool value) noexcept
+        {
+            this->operator=(this->operator&(value));
+            return *this;
+        }
+        constexpr bool operator|(const bool value) const noexcept
+        {
+            return (bool)((u8)this->operator bool() | (u8)value);
+        }
+        inline BitRef& operator|=(const bool value) noexcept
+        {
+            this->operator=(this->operator|(value));
+            return *this;
+        }
+        constexpr bool operator^(const bool value) const noexcept
+        {
+            return (bool)((u8)this->operator bool() ^ (u8)value);
+        }
+        inline BitRef& operator^=(const bool value) noexcept
+        {
+            this->operator=(this->operator^(value));
+            return *this;
+        }
         inline BitRef& Flip() noexcept { return this->operator=(!*this); }
+
+    public:
+        friend std::ostream& operator<<(std::ostream& stream, const BitRef& ref)
+        {
+            stream << ref.operator bool();
+            return stream;
+        }
     };
     class ConstIterator;
     class Iterator
@@ -1051,7 +1085,6 @@ public:
             count = (b) ? ++count : count;
         return count;
     }
-
     constexpr void Clear() noexcept { m_Size = 0; }
     constexpr void Reset() noexcept { std::memset(m_Buffer, 0, m_Capacity); }
 
@@ -1153,9 +1186,8 @@ void TestVec()
 
 void TestBitset()
 {
-    std::bitset<10> n;
-    Vec<bool>       vec  = { 1, 0, 1, 0, 0, 1, 1, 0, 0 };
-    Vec<bool>       vec1 = { 1, 1, 1, 0, 0, 1, 1, 0, 1 };
+    Vec<bool> vec  = { 1, 0, 1, 0, 0, 1, 1, 0, 0 };
+    Vec<bool> vec1 = { 1, 1, 1, 0, 0, 1, 1, 0, 1 };
     vec << vec1;
     std::cout << vec.ToString() << std::endl;
     vec <<= 3;
@@ -1166,9 +1198,10 @@ void TestBitset()
 
 int main()
 {
+    std::bitset<2> a;
+    auto           b = a[0];
+    auto           d = 10;
     std::srand(std::time(nullptr));
 
     // TestVec();
-    TestBitset();
-    return 0;
 }
