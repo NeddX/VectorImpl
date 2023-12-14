@@ -39,7 +39,7 @@ public:
     {
         friend class ConstIterator;
 
-        using iterator_category = std::forward_iterator_tag;
+        using iterator_category = std::input_iterator_tag;
         using difference_type   = ptrdiff;
         using value_type        = T;
         using pointer           = value_type*;
@@ -49,7 +49,7 @@ public:
         pointer m_Ptr;
 
     public:
-        Iterator(pointer ptr) noexcept : m_Ptr(ptr) {}
+        explicit Iterator(pointer ptr) noexcept : m_Ptr(ptr) {}
 
     public:
         constexpr reference operator*() const noexcept { return *m_Ptr; }
@@ -85,7 +85,7 @@ public:
     };
     class ConstIterator
     {
-        using iterator_category = std::forward_iterator_tag;
+        using iterator_category = std::input_iterator_tag;
         using difference_type   = ptrdiff;
         using value_type        = T;
         using pointer           = const value_type*;
@@ -95,8 +95,8 @@ public:
         pointer m_Ptr;
 
     public:
-        ConstIterator(pointer ptr) noexcept : m_Ptr(ptr) {}
-        ConstIterator(Iterator it) noexcept : m_Ptr(it.m_Ptr) {}
+        explicit ConstIterator(pointer ptr) noexcept : m_Ptr(ptr) {}
+        explicit ConstIterator(Iterator it) noexcept : m_Ptr(it.m_Ptr) {}
 
     public:
         constexpr reference   operator*() const noexcept { return *m_Ptr; }
@@ -132,6 +132,108 @@ public:
             return lhv.m_Ptr == rhv.m_Ptr;
         }
         friend bool operator!=(const ConstIterator& lhv, const ConstIterator& rhv) noexcept { return !(lhv == rhv); }
+    };
+    class ForwardIterator
+    {
+        using iterator_category = std::forward_iterator_tag;
+        using difference_type   = ptrdiff;
+        using value_type        = T;
+        using pointer           = value_type*;
+        using reference         = value_type&;
+
+    private:
+        pointer m_Ptr = nullptr;
+
+    public:
+        ForwardIterator() = default;
+        ForwardIterator(pointer ptr) noexcept : m_Ptr(ptr) {}
+        ForwardIterator(Iterator it) noexcept : m_Ptr(it.m_Ptr) {}
+
+    public:
+        constexpr reference   operator*() noexcept { return *m_Ptr; }
+        constexpr pointer     operator->() noexcept { return m_Ptr; };
+        inline ForwardIterator& operator++() noexcept
+        {
+            ++m_Ptr;
+            return *this;
+        }
+        inline ForwardIterator& operator++(const i32) noexcept
+        {
+            auto t = *this;
+            ++(*this);
+            return t;
+        }
+        constexpr ptrdiff    operator-(const ForwardIterator& other) noexcept { return m_Ptr - other.m_Ptr; }
+        inline ForwardIterator operator+(const i32 disp) noexcept
+        {
+            auto temp = *this;
+            temp.m_Ptr += disp;
+            return temp;
+        };
+        inline ForwardIterator operator-(const i32 disp) noexcept
+        {
+            auto temp = *this;
+            temp.m_Ptr -= disp;
+            return temp;
+        }
+
+    public:
+        friend bool operator==(const ForwardIterator& lhv, const ForwardIterator& rhv) noexcept
+        {
+            return lhv.m_Ptr == rhv.m_Ptr;
+        }
+        friend bool operator!=(const ForwardIterator& lhv, const ForwardIterator& rhv) noexcept { return !(lhv == rhv); }
+    };
+    class RandomAccessIterator
+    {
+        using iterator_category = std::forward_iterator_tag;
+        using difference_type   = ptrdiff;
+        using value_type        = T;
+        using pointer           = value_type*;
+        using reference         = value_type&;
+
+    private:
+        pointer m_Ptr = nullptr;
+
+    public:
+        ForwardIterator() = default;
+        ForwardIterator(pointer ptr) noexcept : m_Ptr(ptr) {}
+        ForwardIterator(Iterator it) noexcept : m_Ptr(it.m_Ptr) {}
+
+    public:
+        constexpr reference   operator*() noexcept { return *m_Ptr; }
+        constexpr pointer     operator->() noexcept { return m_Ptr; };
+        inline ForwardIterator& operator++() noexcept
+        {
+            ++m_Ptr;
+            return *this;
+        }
+        inline ForwardIterator& operator++(const i32) noexcept
+        {
+            auto t = *this;
+            ++(*this);
+            return t;
+        }
+        constexpr ptrdiff    operator-(const ForwardIterator& other) noexcept { return m_Ptr - other.m_Ptr; }
+        inline ForwardIterator operator+(const i32 disp) noexcept
+        {
+            auto temp = *this;
+            temp.m_Ptr += disp;
+            return temp;
+        };
+        inline ForwardIterator operator-(const i32 disp) noexcept
+        {
+            auto temp = *this;
+            temp.m_Ptr -= disp;
+            return temp;
+        }
+
+    public:
+        friend bool operator==(const ForwardIterator& lhv, const ForwardIterator& rhv) noexcept
+        {
+            return lhv.m_Ptr == rhv.m_Ptr;
+        }
+        friend bool operator!=(const ForwardIterator& lhv, const ForwardIterator& rhv) noexcept { return !(lhv == rhv); }
     };
 
 public:
